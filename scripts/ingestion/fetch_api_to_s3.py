@@ -2,12 +2,16 @@ import requests
 import pandas as pd
 import boto3
 import os
+from datetime import date
+
+
 
 # ==== הגדרות ====
 url = "https://data.gov.il/api/3/action/datastore_search?resource_id=6c6f191a-0839-411d-ac4f-59abe36a3593"
 local_filename = "data/output/api_data.csv"
-s3_bucket = "your-bucket-name"  # החליפי בשם הדלי שלך
-s3_key = "raw/api_data.csv"     # הנתיב בתוך הדלי
+s3_bucket = "yarden-liron-data-pipeline"  # החליפי בשם הדלי שלך
+today = date.today().isoformat()
+s3_key = f"raw/{today}/api_data.csv"
 
 try:
     print("שולחת בקשה ל-API...")
