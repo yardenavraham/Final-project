@@ -3,11 +3,20 @@ from pyspark.sql import types as T
 from pyspark.sql import SparkSession
 from datetime import date
 
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+access_key = os.getenv("ACCESS_KEY")
+secret_key = os.getenv("SECRET_KEY")   
+
+
 import os
 print(os.getcwd())
 
 spark = SparkSession.builder \
-    .master("local") \
+    .master("local[*]") \
     .appName('roads_pipeline') \
     .getOrCreate()
 
@@ -19,11 +28,9 @@ local_parquet_path = "/home/developer/projects/lab/roads_data_p.parquet"
 
 df = spark.read.parquet(local_parquet_path)
 
-df.show(5)
 
-
-df = df.withColumnRenamed("oid_shvil", "id") \
-       .withColumnRenamed("shem_mikta", "road_section") \
+df = df.withColumnRenamed("oid_shvil", "road_id") \
+       .withColumnRenamed("shem_mikta", "road_name") \
        .withColumnRenamed("bitzua", "year_exec") \
        .withColumnRenamed("ms_orech", "length") \
        .withColumnRenamed("miflas", "surface_type") \
@@ -35,12 +42,14 @@ df.show(5)
 bucket_name = "yarden-liron-processed-data"
 output_path = f"s3a://{bucket_name}/processed/roads/{today}"
 
-spark._jsc.hadoopConfiguration().set("fs.s3a.access.key", "AKIA4EIYVDJXZG3W6X24")
-spark._jsc.hadoopConfiguration().set("fs.s3a.secret.key", "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")
+spark._jsc.hadoopConfiguration().set("fs.s3a.access.key", access_key)
+spark._jsc.hadoopConfiguration().set("fs.s3a.secret.key", secret_key)
 spark._jsc.hadoopConfiguration().set("fs.s3a.endpoint", "s3.amazonaws.com")
 
 df.write.mode("overwrite").parquet(output_path)
 
 print(f"DataFrame written to {output_path}")
+
+df.select("geometry").show(5, truncate=False)
 
 spark.stop()
