@@ -2,6 +2,7 @@ from pyspark.sql import functions as F
 from pyspark.sql import types as T
 from pyspark.sql import SparkSession
 from datetime import date
+import os
 
 from dotenv import load_dotenv
 import os
@@ -12,7 +13,7 @@ access_key = os.getenv("ACCESS_KEY")
 secret_key = os.getenv("SECRET_KEY")   
 
 
-import os
+
 print(os.getcwd())
 
 spark = SparkSession.builder \
