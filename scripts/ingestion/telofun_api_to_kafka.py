@@ -1,14 +1,17 @@
 import json
 import requests
 from kafka import KafkaProducer
+from datetime import datetime
+import time
 
-# API + Kafka basics
+
 GIS_URL = "https://gisn.tel-aviv.gov.il/GisOpenData/service.asmx/GetLayer"
 LAYER_CODE = 835
 PROJECTION = "itm"   # or "wgs84"
 KAFKA_BROKER = "course-kafka:9092"
 KAFKA_TOPIC = "telofun_raw"
 HTTP_TIMEOUT = 60
+INTERVAL_SEC = 60  # send every 60 seconds
 
 def fetch_rows():
     r = requests.get(
@@ -47,11 +50,18 @@ def main():
         bootstrap_servers=KAFKA_BROKER,
         value_serializer=lambda v: json.dumps(v, ensure_ascii=False).encode("utf-8"),
     )
-    for rec in rows:
-        producer.send(KAFKA_TOPIC, value=rec)
-    producer.flush()
-    producer.close()
-    print(f"sent {len(rows)} messages")
+    
+    while True:
+        try:
+            rows = fetch_rows()
+            for rec in rows:
+                producer.send(KAFKA_TOPIC, value=rec)
+            producer.flush()
+            print(f"[{datetime.now().isoformat()}] Sent {len(rows)} messages to {KAFKA_TOPIC}")
+        except Exception as e:
+            print(f"[{datetime.now().isoformat()}] ERROR: {e}")
+
+        time.sleep(INTERVAL_SEC)
 
 if __name__ == "__main__":
     main()

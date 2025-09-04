@@ -3,7 +3,6 @@ import pandas as pd
 import boto3
 import os
 from datetime import date
-from shapely.geometry import LineString
 
 '''
 def fetch_roads_data(layer_code=577, 
@@ -15,8 +14,7 @@ def fetch_roads_data(layer_code=577,
 url = "https://gisn.tel-aviv.gov.il/GisOpenData/service.asmx/GetLayer"
 local_filename = "data/raw/roads_data.csv"
 s3_bucket = "yarden-liron-pipeline"
-today = date.today().isoformat()
-s3_key = f"raw/roads/{today}/roads_data.csv"
+s3_key = f"raw/roads/roads_data.csv"
 
 # Parameters for the API request
 params = {
@@ -26,7 +24,7 @@ params = {
     "ymin": "",
     "xmax": "",
     "ymax": "",
-    "projection": "itm"     # Can also use "wgs84" for lat/lon
+    "projection": "wgs84" #"itm"     # Can also use "wgs84" for lat/lon
 }
 
 # Send GET request to the API

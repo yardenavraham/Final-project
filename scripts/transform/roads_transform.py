@@ -3,54 +3,94 @@ from pyspark.sql import types as T
 from pyspark.sql import SparkSession
 from datetime import date
 import os
-from dotenv import load_dotenv
+import boto3
 
-load_dotenv()
-#print(os.getcwd())
-access_key = os.getenv("ACCESS_KEY")
-secret_key = os.getenv("SECRET_KEY")   
-today = date.today().isoformat()
-local_parquet_path = "data/load/roads_data_p.parquet"
+ 
+local_csv_path = "data/load/roads_data.csv"
+local_processed_roads = "data/processed/roads_data_p"
+s3_bucket_processed = "yarden-liron-processed-data"
+s3_key = f'processed/roads'
+S3_REGION = "us-east-1" 
+
+s3_bucket_raw = 'yarden-liron-pipeline'
+key = f'raw/roads/roads_data.csv'
 
 
+# ---- start Spark session ----    # S3A setup (matches your successful test)
 
-# ---- get parquet file with spark ----
+spark = (
+    SparkSession.builder
+        .master("local[*]")
+        .appName("roads_pipeline")
+        .config("spark.hadoop.fs.s3a.endpoint", f"s3.{S3_REGION}.amazonaws.com")
+        .config("spark.hadoop.fs.s3a.path.style.access", "true")
+        .config(
+            "spark.hadoop.fs.s3a.aws.credentials.provider",
+            "com.amazonaws.auth.DefaultAWSCredentialsProviderChain"
+        )
+        .getOrCreate()
+)
 
-spark = SparkSession.builder \
-    .master("local[*]") \
-    .appName('roads_pipeline') \
-    .getOrCreate()
 
-df = spark.read.parquet(local_parquet_path)
+# ---- define schema ----
+roads_schema = T.StructType([
+    T.StructField("oid_shvil", T.LongType(), True),
+    T.StructField("width", T.DoubleType(), True),
+    T.StructField("shem_mikta", T.StringType(), True),
+    T.StructField("direction", T.StringType(), True),
+    T.StructField("bitzua",  T.IntegerType(), True),
+    T.StructField("ms_orech", T.DoubleType(), True),
+    T.StructField("miflas", T.StringType(), True),
+    T.StructField("date_created", T.StringType(), True),
+    T.StructField("date_import", T.TimestampType(), True),
+    T.StructField("Shape_Length", T.DoubleType(), True),
+    T.StructField("geometry", T.StringType(), True)
+])
 
-print(list(df.columns))
-# ---- change columns names ----
+# ----- load csv from s3
+df = spark.read.csv(
+    f's3a://{s3_bucket_raw}/{key}',
+    header=True,
+    schema=roads_schema
+)
+
+# ---- parse geometry string into ArrayType ----
+geometry_schema = T.ArrayType(T.ArrayType(T.DoubleType()))
+df = df.withColumn(
+    "geometry",
+    F.from_json(F.col("geometry"), geometry_schema)
+)
+
+# ---- rename columns ----
 df = df.withColumnRenamed("oid_shvil", "road_id") \
        .withColumnRenamed("shem_mikta", "road_name") \
        .withColumnRenamed("bitzua", "year_exec") \
        .withColumnRenamed("ms_orech", "length") \
        .withColumnRenamed("miflas", "surface_type") \
        .withColumnRenamed("Shape_Length", "shape_length") 
-print(list(df.columns))     
 
-#df.select("surface_type").distinct().show()   
-#df.select("geometry").show(5, truncate=False)  
-    
 df.show(5)
 
-# ---- spark to s3 ----
-
-bucket_name = "yarden-liron-processed-data"
-output_path = f"s3a://{bucket_name}/processed/roads/{today}"
-
-spark._jsc.hadoopConfiguration().set("fs.s3a.access.key", access_key)
-spark._jsc.hadoopConfiguration().set("fs.s3a.secret.key", secret_key)
-spark._jsc.hadoopConfiguration().set("fs.s3a.endpoint", "s3.amazonaws.com")
-
-df.write.mode("overwrite").parquet(output_path)
-
-print(f"DataFrame written to {output_path}")
 
 
+# ----- null values - roads without name ----
+df = df.withColumn(
+    "road_name",
+    F.when(F.col("road_name").isNull(), F.col("road_id")).otherwise(F.col("road_name"))
+)
+
+
+# ---- save locally as parquet ----
+df.write.mode("overwrite").parquet(local_processed_roads)
+print(f"DataFrame saved locally at {local_processed_roads}")
+
+# ----- Upload to S3 ------------
+
+df.write \
+  .mode("overwrite") \
+  .parquet(f's3a://{s3_bucket_processed}/{s3_key}')
+
+
+print(f"Upload to s3://{s3_bucket_processed}/{s3_key}")
 
 spark.stop()
