@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+env/
+.env
+
+# Logs
+*.log
+
+# Data
+data/raw/
+data/processed/

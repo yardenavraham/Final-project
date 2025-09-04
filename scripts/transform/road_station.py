@@ -4,11 +4,17 @@ from pyspark.sql import functions as F
 from pyspark.sql import Window
 from pyspark.sql.functions import broadcast
 
+from utils import save_spark_df_to_s3
+
 # -------- CONFIG --------
 S3_BUCKET = "yarden-liron-processed-data"
 S3_REGION = "us-east-1"
 TEL_PREFIX  = "processed/telofun/"
 ROADS_PREFIX = "processed/roads/"
+
+bucket_name = "yarden-liron-processed-data"
+output_path = f"s3a://{bucket_name}/processed/road_station"
+key = "processed/road_station"
 
 s3 = boto3.client("s3")
 
@@ -56,12 +62,6 @@ latest_roads = get_latest_folder(S3_BUCKET, ROADS_PREFIX)
 print("***Latest Roads folder:", latest_roads)
 
 roads_df = spark.read.parquet(f"s3a://{S3_BUCKET}/{latest_roads}")
-#roads_df = roads_df.select("road_id", "road_name", "length", "geometry")
-
-
-
-#roads_df.show(5, truncate=False) 
-#tel_df.show(5, truncate=False)
 
 roads_df = roads_df.select("road_id", "geometry")
 
@@ -98,34 +98,31 @@ df_joined = df_joined.withColumn(
 window2 = Window.partitionBy("road_id", "idx_road").orderBy("dist")
 df_closest = df_joined.withColumn("rn", F.row_number().over(window2)).filter(F.col("rn") == 1).drop("rn")
 
-df_closest.show(30, truncate=False)
+df_closest.show(5, truncate=False)
 
 
 local_processed_road_station = "data/processed/road_station.parquet"
+
 # ---- save locally as parquet ----
 df_closest.write.mode("overwrite").parquet(local_processed_road_station)
 print(f"DataFrame saved locally at {local_processed_road_station}")
 
 
 
-import os
-from dotenv import load_dotenv
+# ----- Upload to S3 ------------
 
-load_dotenv()
-
-access_key = os.getenv("ACCESS_KEY")
-secret_key = os.getenv("SECRET_KEY")   
+#df_closest.write.mode("overwrite").parquet(output_path)
 
 
-# ---- spark to s3 ----
-bucket_name = "yarden-liron-processed-data"
-output_path = f"s3a://{bucket_name}/processed/road_station"
+save_spark_df_to_s3(
+    df=df_closest,
+    s3_bucket=bucket_name,
+    s3_key= key,
+    mode="overwrite"
+)
 
-spark._jsc.hadoopConfiguration().set("fs.s3a.access.key", access_key)
-spark._jsc.hadoopConfiguration().set("fs.s3a.secret.key", secret_key)
-spark._jsc.hadoopConfiguration().set("fs.s3a.endpoint", "s3.amazonaws.com")
 
-df_closest.write.mode("overwrite").parquet(output_path)
-print(f"DataFrame written to {output_path}")
+#print(f"Upload to {output_path}")
 
 spark.stop()
+

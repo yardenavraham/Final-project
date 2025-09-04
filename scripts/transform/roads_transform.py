@@ -2,10 +2,8 @@ from pyspark.sql import functions as F
 from pyspark.sql import types as T
 from pyspark.sql import SparkSession
 from datetime import date
-import os
-import boto3
+from utils import save_spark_df_to_s3
 
- 
 local_csv_path = "data/load/roads_data.csv"
 local_processed_roads = "data/processed/roads_data_p"
 s3_bucket_processed = "yarden-liron-processed-data"
@@ -72,7 +70,6 @@ df = df.withColumnRenamed("oid_shvil", "road_id") \
 df.show(5)
 
 
-
 # ----- null values - roads without name ----
 df = df.withColumn(
     "road_name",
@@ -86,11 +83,15 @@ print(f"DataFrame saved locally at {local_processed_roads}")
 
 # ----- Upload to S3 ------------
 
-df.write \
-  .mode("overwrite") \
-  .parquet(f's3a://{s3_bucket_processed}/{s3_key}')
+#df.write.mode("overwrite").parquet(f's3a://{s3_bucket_processed}/{s3_key}')
 
+#print(f"Upload to s3://{s3_bucket_processed}/{s3_key}")
 
-print(f"Upload to s3://{s3_bucket_processed}/{s3_key}")
+save_spark_df_to_s3(
+    df=df,
+    s3_bucket=s3_bucket_processed,
+    s3_key= s3_key,
+    mode="overwrite"
+)
 
 spark.stop()

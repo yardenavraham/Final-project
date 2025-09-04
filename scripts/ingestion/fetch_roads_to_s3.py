@@ -4,12 +4,6 @@ import boto3
 import os
 from datetime import date
 
-'''
-def fetch_roads_data(layer_code=577, 
-                     local_path="data/raw/roads_data.csv",
-                     s3_bucket=None,
-                     s3_prefix="raw/roads"):
-'''
 # API endpoint
 url = "https://gisn.tel-aviv.gov.il/GisOpenData/service.asmx/GetLayer"
 local_filename = "data/raw/roads_data.csv"
